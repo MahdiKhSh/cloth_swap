@@ -1,0 +1,145 @@
+# Default configuration. Copy the keys you want to change into your own YAML
+# file and pass it with --config; anything not listed there keeps these values.
+# Single values can also be overridden on the command line: --set scail.steps=40
+
+device: cuda
+
+video:
+  start_frame: 0
+  max_frames: null            # null = whole clip (one run of up to ~20 s is a sensible size)
+
+actor:
+  mode: text                  # text: SAM3 concept tracking of `prompt` | track: SAM3 tracker seeded by point/box
+  prompt: person
+  select_frame: 0             # frame on which the actor is chosen (and where point/box are given)
+  point: null                 # [x, y] in original pixels: choose the person under this point
+  box: null                   # [x1, y1, x2, y2]: choose the person that best matches this box
+  stitch_iou: 0.2             # after an ID switch (occlusion), re-attach a new track overlapping the last mask
+  gap_fill: 2                 # frames: bridge short detection dropouts by repeating the last mask
+
+sam3:
+  model_id: facebook/sam3     # gated on Hugging Face: accept the licence and `hf auth login` first
+  dtype: bfloat16
+  score_threshold: 0.5
+  new_det_threshold: 0.7
+  face_prompt: face
+  hair_prompt: hair
+  old_garment_prompt: null    # e.g. "jacket" (the garment being replaced); used by composite.mode=garment
+  new_garment_prompt: null    # e.g. "long black coat"; used by composite.mode=garment
+
+keyframe:
+  frame: null                 # null = choose automatically (large, sharp, uncut, face visible)
+  num_extra: 0                # extra edited keyframes passed as additional references (experimental in SCAIL-2)
+  crop_margin: 0.15           # context around the actor box sent to the image editor
+  restore_face: true          # paste the original face back over the edited keyframe
+  # Built-in instructions for the image editor; {garment} is filled in by the program and the
+  # user's own text (studio: "extra instructions") is appended after them.
+  prompt: >-
+    Virtual try-on. Image 1 is a frame from a film. Dress the main person in image 1 in
+    {garment}. Copy the garment exactly: same color, fabric, texture, pattern, logo,
+    collar, buttons, pockets and sleeve length. Replace only the clothing the new
+    garment covers. Everything else in image 1 must stay pixel-identical: the same
+    person, the same face, facial expression, hair, skin tone and age, the same head
+    angle, body pose, arm and hand positions, body proportions and size, the same crop,
+    framing and camera angle, the same background, other people and lighting. Do not
+    turn, move, re-pose, zoom or straighten the person, do not show the person from the
+    front if they are seen from the side, and do not add or remove people or limbs. The
+    garment must fit the existing pose naturally, with realistic folds, motion and
+    shading that match the light and colour grading of the frame.
+  text_only_prompt: >-
+    Virtual try-on. The image is a frame from a film. Dress the main person in {garment}.
+    Replace only the clothing the new garment covers. Everything else must stay
+    pixel-identical: the same person, the same face, facial expression, hair, skin tone
+    and age, the same head angle, body pose, arm and hand positions, body proportions and
+    size, the same crop, framing and camera angle, the same background, other people and
+    lighting. Do not turn, move, re-pose, zoom or straighten the person and do not add or
+    remove people or limbs. The garment must fit the existing pose naturally, with
+    realistic folds, motion and shading that match the light and colour grading of the frame.
+
+qwen:
+  model_id: Qwen/Qwen-Image-Edit-2511
+  quantization: nf4           # nf4: quantize on load | prequantized: model_id already holds 4-bit weights
+                              # (e.g. ovedrive/Qwen-Image-Edit-2511-4bit, 17 GB download) | none: bf16
+  cpu_offload: model          # model | sequential | none
+  steps: 40
+  true_cfg_scale: 4.0
+  lightning_lora: null        # optional few-step LoRA; then use steps: 8 and true_cfg_scale: 1.0
+  seed: 0
+
+prompt:                       # used to build the SCAIL-2 prompt when scail.prompt is empty
+  subject: A person
+  garment: null               # e.g. "a black leather biker jacket over a grey t-shirt"
+  scene: null                 # e.g. "He fights two men in a dark warehouse, fast camera movement."
+  keep_identity: >-           # added to every SCAIL-2 prompt: only the clothes may change
+    Only the clothing is different. The person keeps exactly the same face, facial features,
+    facial expression, skin tone, age, hairstyle, hair colour and head covering as in the
+    reference image and the original video, unchanged in every frame.
+
+scail:
+  python: python              # interpreter of the SCAIL-2 environment (its own venv/conda)
+  repo_dir: /path/to/SCAIL-2  # clone of github.com/zai-org/SCAIL-2 (branch wan-scail2)
+  ckpt_dir: /path/to/SCAIL-2-weights          # `hf download zai-org/SCAIL-2`
+  scail_path: /path/to/SCAIL-2.safetensors    # convert.py output, or Comfy-Org/SCAIL-2 fp16 / fp8_scaled file
+  model: SCAIL-14B
+  weights: fp8                # fp8: stream the DiT to the GPU in float8 (32 GB GPU + 32 GB RAM) | full: repo loader (fp32, ~70 GB RAM)
+  attention: auto             # auto: flash-attn if installed, else torch SDPA | sdpa | flash
+  target_area: 901120         # 704*1280 pixels; working size keeps the clip's aspect ratio
+  size_multiple: 32
+  steps: 8                    # with the lightx2v LoRA; without it use 40 / shift 3.0 / guide_scale 5.0
+  shift: 1.0
+  guide_scale: 1.0
+  solver: unipc
+  seed: 42
+  segment_len: 81
+  segment_overlap: 5
+  t5_cpu: true
+  offload_model: true
+  loras:
+    - path: /path/to/lightx2v_I2V_14B_480p_cfg_step_distill_rank128_bf16.safetensors
+      alpha: 1.0
+    # Relighting LoRA for replacement (convert with the repo's convert_lora.py first):
+    # - path: /path/to/relighting_lora.safetensors
+    #   alpha: 1.0
+  replace_dilate: 0.015       # fraction of frame height added around the actor mask
+  replace_temporal: 1         # frames: union the mask over +-N frames to cover motion blur
+  prompt: null                # full prompt; overrides the `prompt:` block above
+  prompt_enhancer: false      # run the repo's prompt_enhancer.py (sends frames to Gemini; needs GEMINI_API_KEY)
+  enhancer_instruction: >-
+    Replace the person in the video with the person in the image, keeping the
+    same motion, camera and scene. Describe the new outfit precisely.
+
+upscale:
+  backend: resize             # resize (Lanczos) | seedvr2
+  seedvr2:                    # ComfyUI-SeedVR2_VideoUpscaler's inference_cli.py, run with its own Python
+    python: python
+    cli_dir: /path/to/ComfyUI/custom_nodes/ComfyUI-SeedVR2_VideoUpscaler
+    model_dir: /path/to/ComfyUI/models/SEEDVR2
+    dit_model: seedvr2_ema_7b_sharp_fp16.safetensors   # the most detailed one
+    batch_size: 21            # frames per pass (4n+1): more = steadier over time, more VRAM
+    temporal_overlap: 3       # frames blended between passes
+    prepend_frames: 4         # reversed frames before the start (removes first-frame artifacts)
+    blocks_to_swap: 36        # 7B DiT blocks kept in RAM, so 4K fits a 32 GB GPU
+    color_correction: lab
+    seed: 42
+
+composite:
+  mode: actor                 # actor: regenerated actor over the original | garment: only old+new garment area | full: SCAIL-2 frame as is
+  dilate: 0.02                # fraction of frame height
+  feather: 0.012              # fraction of frame height
+  temporal: 1                 # frames: union of masks over +-N frames
+
+output:
+  crf: 16
+  resolution: original        # original | 1080p | 4k: the finished shot is upscaled with SeedVR2 (slow)
+  preview: true               # write side-by-side and mask preview videos into the work directory
+
+# Native character replacement; shared T5/VAE paths are set in local.yaml.
+generation:
+  backend: wan_animate
+animate:
+  model_id: Wan-AI/Wan2.2-Animate-14B-Diffusers
+  pose_model_id: Wan-AI/Wan2.2-Animate-14B
+  repo_dir: D:/project/Wan2.2
+  vae: D:/models/SCAIL-2/Wan2.1_VAE.pth
+  segment_len: 33
+  steps: 20

@@ -1,0 +1,27 @@
+# Main environment (masks, keyframe editing, compositing). Python 3.10-3.12.
+# Install PyTorch first for your CUDA version (RTX 50xx needs a CUDA 12.8+ build), e.g.:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+transformers>=5.0.0      # needs the SAM3 models (Sam3VideoModel, Sam3TrackerVideoModel, Sam3Model)
+diffusers>=0.36.0        # QwenImageEditPlusPipeline
+accelerate
+bitsandbytes             # NF4 loading of Qwen-Image-Edit on 24-32 GB GPUs
+numpy
+opencv-python
+pillow
+imageio-ffmpeg
+pyyaml
+tqdm
+pytest
+httpx                    # FastAPI test client
+fastapi                  # studio (web UI) backend
+uvicorn[standard]
+python-multipart
+
+# SCAIL-2 runs in its OWN environment: clone github.com/zai-org/SCAIL-2 (branch wan-scail2)
+# and follow its README (pip install -r requirements.txt, hf download zai-org/SCAIL-2, convert.py).
+# Optional SeedVR2 upscaling also uses its own environment (github.com/ByteDance-Seed/SeedVR).
+
+onnxruntime
+
+matplotlib
+onnx

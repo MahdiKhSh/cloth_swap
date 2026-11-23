@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cloth_swap"
+version = "0.1.0"
+description = "Video clothing replacement (SAM3 + Qwen-Image-Edit + SCAIL-2); also the shared model code of video_object_insert"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["cloth_swap", "cloth_swap.studio"]
